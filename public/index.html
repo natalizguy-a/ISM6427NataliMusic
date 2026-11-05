@@ -21,6 +21,7 @@
     --radius: 14px;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
     margin: 0;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -44,7 +45,7 @@
   @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
 
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
-  .tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel-2); border-radius: 10px; padding: 4px; margin-bottom: 18px; }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--panel-2); border-radius: 10px; padding: 4px; margin-bottom: 18px; }
   .tabs button { background: none; border: 0; color: var(--muted); padding: 9px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
   .tabs button.on { background: var(--line); color: var(--text); }
 
@@ -110,6 +111,32 @@
 
   .shimmer { height: 88px; border-radius: 12px; background: linear-gradient(90deg, var(--panel-2) 0%, var(--line) 50%, var(--panel-2) 100%); background-size: 200% 100%; animation: sh 1.4s infinite; margin-bottom: 10px; }
   @keyframes sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  /* Recorder */
+  .rec-box { text-align: center; padding: 18px 12px; background: var(--panel-2); border-radius: 12px; }
+  .rec-btn {
+    width: 84px; height: 84px; border-radius: 50%; border: 4px solid #fff3; background: #ff3b5c; color: #fff;
+    font-size: 30px; cursor: pointer; display: inline-grid; place-items: center; transition: transform .15s;
+  }
+  .rec-btn:hover { transform: scale(1.05); }
+  .rec-btn.on { animation: pulse 1.2s infinite; background: #e0002b; }
+  .rec-btn.on::after { content: ""; width: 26px; height: 26px; border-radius: 5px; background: #fff; }
+  .rec-btn.on span { display: none; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,59,92,.5); } 50% { box-shadow: 0 0 0 14px rgba(255,59,92,0); } }
+  .rec-time { font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; margin-top: 10px; }
+  .rec-hint { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .meter { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 12px auto 0; max-width: 220px; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .08s; }
+  .rec-done audio { margin-top: 12px; }
+  .rec-links { display: flex; justify-content: center; gap: 16px; margin-top: 10px; font-size: 13px; }
+  .rec-links button, .rec-links label { all: unset; color: var(--accent); cursor: pointer; font-size: 13px; }
+  .checks { display: grid; gap: 8px; margin-top: 14px; }
+  .check { display: flex; gap: 10px; align-items: center; font-size: 14px; background: var(--panel-2); padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .check small { color: var(--muted); display: block; font-size: 12px; }
+  .layer { margin-top: 8px; padding: 8px 10px; background: var(--panel); border-radius: 8px; font-size: 12px; }
+  .layer label { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; cursor: pointer; }
+  .layer .vol { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: var(--muted); }
+  .layer input[type=range] { flex: 1; }
   footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 40px; }
 </style>
 </head>
@@ -131,6 +158,7 @@
       <div class="tabs" role="tablist">
         <button type="button" class="on" data-mode="simple">Simple</button>
         <button type="button" data-mode="custom">Custom</button>
+        <button type="button" data-mode="record">🎤 Record</button>
       </div>
 
       <!-- Simple mode -->
@@ -190,7 +218,53 @@
         </details>
       </div>
 
-      <div class="switch">
+      <!-- Record mode -->
+      <div id="record" hidden>
+        <div class="rec-box">
+          <div id="recIdle">
+            <button type="button" class="rec-btn" id="recBtn" aria-label="Record"><span>🎤</span></button>
+            <div class="rec-time" id="recTime">0:00</div>
+            <div class="rec-hint" id="recHint">Tap and sing! 6 seconds to 3 minutes.</div>
+            <div class="meter" id="meter" hidden><i></i></div>
+            <div class="rec-links"><label>or upload a recording<input type="file" id="recFile" accept="audio/*" hidden></label></div>
+          </div>
+          <div class="rec-done" id="recDone" hidden>
+            <div style="font-weight:700">Recording ready ✅ <span class="tags" id="recLen"></span></div>
+            <audio controls id="recPreview"></audio>
+            <div class="rec-links"><button type="button" id="recAgain">Record again</button></div>
+          </div>
+        </div>
+
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="fxBoost" checked>
+            <span>Make voices fuller<small>Evens out loud and quiet parts and raises the volume</small></span></label>
+          <label class="check"><input type="checkbox" id="fxReverb">
+            <span>Add echo (reverb)<small>A little room sound, like singing on stage</small></span></label>
+        </div>
+
+        <label for="recTitle">Song name</label>
+        <input type="text" id="recTitle" maxlength="80" placeholder="Our Song">
+
+        <label for="recTags">Background music &amp; beat</label>
+        <input type="text" id="recTags" maxlength="1000" placeholder="happy kids pop, acoustic guitar, claps, light drums">
+        <div class="chips" data-target="recTags" data-append>
+          <span class="chip">kids pop</span><span class="chip">drum beat</span><span class="chip">hip hop beat</span>
+          <span class="chip">acoustic guitar</span><span class="chip">piano</span><span class="chip">ukulele</span>
+          <span class="chip">lullaby</span><span class="chip">dance</span><span class="chip">clapping</span><span class="chip">orchestra</span>
+        </div>
+
+        <details>
+          <summary>More options</summary>
+          <label for="recLyrics">Lyrics they sing <span class="hint">(optional, helps match the words)</span></label>
+          <textarea id="recLyrics" maxlength="5000" rows="5"></textarea>
+          <label for="recAvoid">Avoid <span class="hint">(optional)</span></label>
+          <input type="text" id="recAvoid" maxlength="1000" placeholder="heavy metal, loud drums">
+          <label for="recWeight">Stay close to the recording <span class="hint" id="rwv">default</span></label>
+          <input type="range" id="recWeight" min="0" max="1" step="0.05" value="0.65" data-touched="0">
+        </details>
+      </div>
+
+      <div class="switch" id="instWrap">
         <span>Instrumental (no vocals)</span>
         <input type="checkbox" id="instrumental">
       </div>
@@ -203,6 +277,7 @@
       </select>
 
       <button class="go" id="go" type="submit">Generate song ✨</button>
+      <div class="rec-hint" id="goHint" hidden></div>
       <div class="msg" id="msg"></div>
     </form>
 
@@ -219,6 +294,7 @@
   <footer>Powered by SunoAPI.org · Audio files are kept by the provider for 14 days, so download the ones you love.</footer>
 </div>
 
+<script src="/lame.min.js" defer></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -263,7 +339,15 @@
     document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
     $("simple").hidden = mode !== "simple";
     $("custom").hidden = mode !== "custom";
+    $("record").hidden = mode !== "record";
+    $("instWrap").hidden = mode === "record";
+    setGoLabel();
+    showError("");
   }));
+
+  function setGoLabel(text) {
+    $("go").textContent = text || (mode === "record" ? "Add music & beat 🎶" : "Generate song ✨");
+  }
 
   // Instrumental hides lyrics and voice
   $("instrumental").addEventListener("change", () => {
@@ -296,7 +380,7 @@
   });
 
   // Sliders only count once moved
-  [["styleWeight", "swv"], ["weird", "wv"]].forEach(([id, lab]) => {
+  [["styleWeight", "swv"], ["weird", "wv"], ["recWeight", "rwv"]].forEach(([id, lab]) => {
     $(id).addEventListener("input", () => {
       $(id).dataset.touched = "1";
       $(lab).textContent = Math.round($(id).value * 100) + "%";
@@ -330,6 +414,7 @@
   $("form").addEventListener("submit", async (e) => {
     e.preventDefault();
     showError("");
+    if (mode === "record") return submitRecording();
     const instrumental = $("instrumental").checked;
     const payload = { customMode: mode === "custom", instrumental, model: $("model").value };
     let label;
@@ -363,16 +448,362 @@
       body: JSON.stringify(payload),
     });
     $("go").disabled = false;
-    $("go").textContent = "Generate song ✨";
+    setGoLabel();
 
     if (res.code !== 200 || !res.data?.taskId) return showError(errorText(res));
+    addJob({ id: res.data.taskId, label });
+  });
 
-    const job = { id: res.data.taskId, label, status: "SUBMITTED", tracks: [], created: Date.now() };
+  function addJob(fields) {
+    const job = { status: "SUBMITTED", tracks: [], created: Date.now(), ...fields };
     jobs.unshift(job);
     save();
     render();
     poll(job.id);
+  }
+
+  /* ---------------- Recording ---------------- */
+  const MAX_SEC = 180, MIN_SEC = 6, MAX_FILE_SEC = 240;
+  let rec = null;         // { recorder, stream, chunks, start, timer, ctx, raf }
+  let recBlob = null;     // raw recording (any format the browser made)
+  let recSeconds = 0;
+
+  const fmtClock = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+
+  $("recBtn").addEventListener("click", () => (rec ? stopRecording() : startRecording()));
+  $("recAgain").addEventListener("click", resetRecording);
+  $("recFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    if (f.size > 50e6) return showError("That file is too big. Pick one under 50 MB.");
+    try {
+      const buf = await decode(f);
+      if (buf.duration > MAX_FILE_SEC) return showError("Please use a recording under 4 minutes.");
+      setRecording(f, buf.duration);
+    } catch {
+      showError("Couldn't read that file. Try an MP3, M4A or WAV.");
+    }
   });
+
+  async function startRecording() {
+    showError("");
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      return showError("This browser can't record. Try Chrome or Safari, or upload a file instead.");
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true },
+      });
+    } catch {
+      return showError("Microphone access was blocked. Allow the microphone in your browser settings and try again.");
+    }
+    const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported(t));
+    const recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+    rec = { recorder, stream, chunks: [], start: Date.now() };
+    recorder.ondataavailable = (e) => e.data.size && rec.chunks.push(e.data);
+    recorder.onstop = finishRecording;
+    recorder.start(250);
+
+    // Live level meter
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const an = ctx.createAnalyser();
+      an.fftSize = 512;
+      ctx.createMediaStreamSource(stream).connect(an);
+      const data = new Uint8Array(an.fftSize);
+      const bar = $("meter").firstElementChild;
+      const draw = () => {
+        an.getByteTimeDomainData(data);
+        let peak = 0;
+        for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
+        bar.style.width = Math.min(100, (peak / 128) * 160) + "%";
+        rec.raf = requestAnimationFrame(draw);
+      };
+      rec.ctx = ctx;
+      draw();
+    } catch {}
+
+    $("recBtn").classList.add("on");
+    $("meter").hidden = false;
+    $("recHint").textContent = "Recording… tap to stop";
+    rec.timer = setInterval(() => {
+      const sec = (Date.now() - rec.start) / 1000;
+      $("recTime").textContent = fmtClock(sec);
+      if (sec >= MAX_SEC) stopRecording();
+    }, 200);
+  }
+
+  function stopRecording() {
+    if (!rec) return;
+    clearInterval(rec.timer);
+    cancelAnimationFrame(rec.raf);
+    rec.ctx?.close();
+    rec.stream.getTracks().forEach((t) => t.stop());
+    if (rec.recorder.state !== "inactive") rec.recorder.stop();
+    $("recBtn").classList.remove("on");
+    $("meter").hidden = true;
+  }
+
+  function finishRecording() {
+    const sec = (Date.now() - rec.start) / 1000;
+    const blob = new Blob(rec.chunks, { type: rec.recorder.mimeType || "audio/webm" });
+    rec = null;
+    if (sec < MIN_SEC) {
+      $("recTime").textContent = "0:00";
+      $("recHint").textContent = "Tap and sing! 6 seconds to 3 minutes.";
+      return showError(`That was too short. Sing for at least ${MIN_SEC} seconds.`);
+    }
+    setRecording(blob, sec);
+  }
+
+  function setRecording(blob, sec) {
+    recBlob = blob;
+    recSeconds = sec;
+    $("recPreview").src = URL.createObjectURL(blob);
+    $("recLen").textContent = "· " + fmtClock(sec);
+    $("recIdle").hidden = true;
+    $("recDone").hidden = false;
+    showError("");
+  }
+
+  function resetRecording() {
+    recBlob = null;
+    $("recPreview").removeAttribute("src");
+    $("recTime").textContent = "0:00";
+    $("recHint").textContent = "Tap and sing! 6 seconds to 3 minutes.";
+    $("recIdle").hidden = false;
+    $("recDone").hidden = true;
+  }
+
+  async function decode(blob) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    try {
+      const ab = await blob.arrayBuffer();
+      return await new Promise((ok, fail) => ctx.decodeAudioData(ab, ok, fail));
+    } finally {
+      ctx.close();
+    }
+  }
+
+  // Simple synthetic room reverb
+  function impulse(ctx, seconds = 1.8, decay = 3) {
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+    return buf;
+  }
+
+  // Clean up the voice: optional compression + volume boost + reverb, mono 44.1 kHz
+  async function processVoice(blob, { boost, reverb }) {
+    const src = await decode(blob);
+    const rate = 44100;
+    const tail = reverb ? 1.5 : 0;
+    const ctx = new OfflineAudioContext(1, Math.ceil((src.duration + tail) * rate), rate);
+    const node = ctx.createBufferSource();
+    node.buffer = src;
+    let chain = node;
+    if (boost) {
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 80;
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -26;
+      comp.knee.value = 12;
+      comp.ratio.value = 4;
+      comp.attack.value = 0.005;
+      comp.release.value = 0.25;
+      chain.connect(hp);
+      hp.connect(comp);
+      chain = comp;
+    }
+    chain.connect(ctx.destination);
+    if (reverb) {
+      const conv = ctx.createConvolver();
+      conv.buffer = impulse(ctx);
+      const wet = ctx.createGain();
+      wet.gain.value = 0.22;
+      chain.connect(conv);
+      conv.connect(wet);
+      wet.connect(ctx.destination);
+    }
+    node.start();
+    const out = await ctx.startRendering();
+    if (boost) normalize(out, 0.95);
+    else normalize(out, 0.99, true);
+    return out;
+  }
+
+  function normalize(buf, target, onlyIfClipping = false) {
+    let peak = 0;
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+    }
+    if (!peak || (onlyIfClipping && peak <= target)) return;
+    const g = target / peak;
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < d.length; i++) d[i] *= g;
+    }
+  }
+
+  function encodeMp3(buf, kbps) {
+    if (!window.lamejs) throw new Error("MP3 encoder didn't load. Check your connection and refresh.");
+    const ch = Math.min(2, buf.numberOfChannels);
+    const enc = new lamejs.Mp3Encoder(ch, buf.sampleRate, kbps);
+    const toInt16 = (f) => {
+      const o = new Int16Array(f.length);
+      for (let i = 0; i < f.length; i++) {
+        const v = Math.max(-1, Math.min(1, f[i]));
+        o[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+      }
+      return o;
+    };
+    const L = toInt16(buf.getChannelData(0));
+    const R = ch > 1 ? toInt16(buf.getChannelData(1)) : null;
+    const parts = [];
+    for (let i = 0; i < L.length; i += 1152) {
+      const out = R ? enc.encodeBuffer(L.subarray(i, i + 1152), R.subarray(i, i + 1152)) : enc.encodeBuffer(L.subarray(i, i + 1152));
+      if (out.length) parts.push(new Uint8Array(out));
+    }
+    const end = enc.flush();
+    if (end.length) parts.push(new Uint8Array(end));
+    return new Blob(parts, { type: "audio/mpeg" });
+  }
+
+  const toDataUrl = (blob) => new Promise((ok, fail) => {
+    const r = new FileReader();
+    r.onload = () => ok(r.result);
+    r.onerror = fail;
+    r.readAsDataURL(blob);
+  });
+
+  async function submitRecording() {
+    if (!recBlob) return showError("Record the kids singing first (tap the red button).");
+    $("go").disabled = true;
+    try {
+      setGoLabel("Polishing the voices…");
+      const voice = await processVoice(recBlob, { boost: $("fxBoost").checked, reverb: $("fxReverb").checked });
+      const mp3 = encodeMp3(voice, 112);
+
+      setGoLabel("Uploading…");
+      const up = await api("/.netlify/functions/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64Data: await toDataUrl(mp3) }),
+      });
+      if (up.code !== 200 || !up.data?.url) throw new Error(errorText(up));
+
+      setGoLabel("Adding music…");
+      const title = $("recTitle").value.trim() || "Our Song";
+      const payload = {
+        uploadUrl: up.data.url,
+        title,
+        tags: $("recTags").value.trim(),
+        negativeTags: $("recAvoid").value.trim(),
+        lyrics: $("recLyrics").value.trim(),
+        model: $("model").value,
+      };
+      if ($("recWeight").dataset.touched === "1") payload.audioWeight = $("recWeight").value;
+      const res = await api("/.netlify/functions/add-instrumental", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.code !== 200 || !res.data?.taskId) throw new Error(errorText(res));
+      addJob({ id: res.data.taskId, label: `🎤 ${title}`, recordingUrl: up.data.url });
+    } catch (err) {
+      showError(err.message || "Something went wrong. Please try again.");
+    } finally {
+      $("go").disabled = false;
+      setGoLabel();
+    }
+  }
+
+  /* ---------------- Layering the original voices over the music ---------------- */
+  const layers = {}; // trackId -> { on, vol }
+
+  function layerState(id) {
+    return (layers[id] ||= { on: false, vol: 0.8 });
+  }
+
+  function syncVoice(trackEl) {
+    const music = trackEl.querySelector("audio.music");
+    const voice = trackEl.querySelector("audio.voice");
+    if (!music || !voice) return;
+    const st = layerState(trackEl.dataset.id);
+    voice.volume = st.vol;
+    if (!st.on || music.paused) { voice.pause(); return; }
+    if (Math.abs(voice.currentTime - music.currentTime) > 0.25) voice.currentTime = music.currentTime;
+    voice.play().catch(() => {});
+  }
+
+  ["play", "pause", "seeked", "ended"].forEach((ev) =>
+    $("jobs").addEventListener(ev, (e) => {
+      if (e.target.matches("audio.music")) syncVoice(e.target.closest(".track"));
+    }, true)
+  );
+
+  $("jobs").addEventListener("input", (e) => {
+    const t = e.target.closest(".track");
+    if (!t) return;
+    const st = layerState(t.dataset.id);
+    if (e.target.matches("[data-layer]")) st.on = e.target.checked;
+    if (e.target.matches("[data-vol]")) st.vol = Number(e.target.value);
+    syncVoice(t);
+  });
+
+  async function fetchAudio(url) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) return await r.blob();
+    } catch {}
+    const r = await fetch(`/.netlify/functions/audio?url=${encodeURIComponent(url)}`);
+    if (!r.ok) throw new Error("Couldn't download the audio for mixing.");
+    return r.blob();
+  }
+
+  async function downloadMix(btn, track, voiceUrl) {
+    const st = layerState(track.id);
+    const old = btn.textContent;
+    btn.disabled = true;
+    try {
+      btn.textContent = "Mixing…";
+      const [m, v] = await Promise.all([fetchAudio(track.audio || track.stream).then(decode), fetchAudio(voiceUrl).then(decode)]);
+      const rate = 44100;
+      const ctx = new OfflineAudioContext(2, Math.ceil(Math.max(m.duration, v.duration) * rate), rate);
+      [[m, 1], [v, st.vol]].forEach(([buf, g]) => {
+        const s = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        s.buffer = buf;
+        gain.gain.value = g;
+        s.connect(gain);
+        gain.connect(ctx.destination);
+        s.start();
+      });
+      const out = await ctx.startRendering();
+      normalize(out, 0.98, true);
+      const mp3 = encodeMp3(out, 192);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(mp3);
+      a.download = `${(track.title || "song").replace(/[^\w\u0590-\u05ff -]+/g, "")} (mix).mp3`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      btn.textContent = old;
+    } catch (err) {
+      btn.textContent = "Mix failed";
+      showError(err.message || "Couldn't make the mix.");
+    } finally {
+      btn.disabled = false;
+    }
+  }
 
   function normTrack(t) {
     return {
@@ -422,21 +853,32 @@
     return /^https?:\/\//i.test(u) ? u : "";
   }
 
-  function trackHtml(t) {
+  function trackHtml(t, job) {
     const img = safeUrl(t.image);
     const src = safeUrl(t.audio) || safeUrl(t.stream);
     const dl = safeUrl(t.audio);
+    const voiceUrl = safeUrl(job.recordingUrl || "");
+    const st = layerState(t.id);
+    const layer = voiceUrl && src ? `
+          <audio class="voice" preload="auto" src="${esc(voiceUrl)}"></audio>
+          <div class="layer">
+            <label><input type="checkbox" data-layer ${st.on ? "checked" : ""}> Layer the original recording on top</label>
+            <div class="vol">Voices <input type="range" min="0" max="1" step="0.05" value="${st.vol}" data-vol></div>
+          </div>` : "";
     return `
-      <div class="track">
+      <div class="track" data-id="${esc(t.id)}" data-job="${esc(job.id)}">
         ${img ? `<img class="cover" src="${esc(img)}" alt="" loading="lazy">` : `<div class="cover ph">🎵</div>`}
         <div style="min-width:0">
           <h3>${esc(t.title)} ${t.duration ? `<span class="tags">· ${fmt(t.duration)}</span>` : ""}</h3>
           <div class="tags">${esc(t.tags)}</div>
-          ${src ? `<audio controls preload="none" src="${esc(src)}"></audio>` : `<div class="tags">Audio is still rendering…</div>`}
+          ${src ? `<audio class="music" controls preload="none" src="${esc(src)}"></audio>` : `<div class="tags">Audio is still rendering…</div>`}
           <div class="actions">
             ${dl ? `<a href="${esc(dl)}" target="_blank" rel="noopener" download>Download MP3</a>` : ""}
             ${t.lyrics ? `<button type="button" data-lyrics>Show lyrics</button>` : ""}
+            ${voiceUrl && src ? `<button type="button" data-mix>Download with voices layered</button>` : ""}
+            ${voiceUrl ? `<a href="${esc(voiceUrl)}" target="_blank" rel="noopener">Original recording</a>` : ""}
           </div>
+          ${layer}
           ${t.lyrics ? `<div class="lyrics">${esc(t.lyrics)}</div>` : ""}
         </div>
       </div>`;
@@ -464,13 +906,20 @@
           </div>
           ${working ? `<div class="progress"><i style="width:${pct}%"></i></div>` : ""}
           ${failed && j.error ? `<div class="msg err">${esc(j.error)}</div>` : ""}
-          ${j.tracks.filter((t) => t.audio || t.stream || done).map(trackHtml).join("")}
+          ${j.tracks.filter((t) => t.audio || t.stream || done).map((t) => trackHtml(t, j)).join("")}
           ${'<div class="shimmer"></div>'.repeat(placeholders)}
         </div>`;
     }).join("");
   }
 
   $("jobs").addEventListener("click", (e) => {
+    if (e.target.matches("[data-mix]")) {
+      const el = e.target.closest(".track");
+      const job = jobs.find((j) => j.id === el.dataset.job);
+      const track = job?.tracks.find((t) => t.id === el.dataset.id);
+      if (job && track) downloadMix(e.target, track, job.recordingUrl);
+      return;
+    }
     if (e.target.matches("[data-lyrics]")) {
       const box = e.target.closest(".track").querySelector(".lyrics");
       box.classList.toggle("show");

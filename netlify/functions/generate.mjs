@@ -1,8 +1,4 @@
-import { json, suno } from "./_suno.mjs";
-
-const MODELS = ["V6", "V6_WILD", "V6_MINI"];
-
-const clip = (v, n) => (typeof v === "string" ? v.trim().slice(0, n) : "");
+import { json, suno, clip, callbackUrl, unit, MODELS } from "./_suno.mjs";
 
 export default async (req) => {
   if (req.method !== "POST") return json({ code: 405, msg: "Use POST" }, 405);
@@ -18,9 +14,7 @@ export default async (req) => {
   const instrumental = !!input.instrumental;
   const model = MODELS.includes(input.model) ? input.model : "V6";
 
-  // Suno requires a callback URL; we point it at our own no-op endpoint and poll for status instead.
-  const site = process.env.URL || new URL(req.url).origin;
-  const body = { customMode, instrumental, model, callBackUrl: `${site}/.netlify/functions/callback` };
+  const body = { customMode, instrumental, model, callBackUrl: callbackUrl(req) };
 
   if (customMode) {
     const title = clip(input.title, 80);
@@ -40,8 +34,8 @@ export default async (req) => {
     const duration = Number(input.duration);
     if (duration >= 10 && duration <= 360) body.duration = Math.round(duration);
     for (const k of ["styleWeight", "weirdnessConstraint"]) {
-      const v = Number(input[k]);
-      if (input[k] !== undefined && input[k] !== "" && v >= 0 && v <= 1) body[k] = Math.round(v * 100) / 100;
+      const v = unit(input[k]);
+      if (v !== undefined) body[k] = v;
     }
   } else {
     const prompt = clip(input.prompt, 3000);
