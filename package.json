@@ -1,0 +1,8 @@
+{
+  "name": "natali-music",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Generate music with SunoAPI.org, hosted on Netlify",
+  "engines": { "node": ">=18" }
+}
